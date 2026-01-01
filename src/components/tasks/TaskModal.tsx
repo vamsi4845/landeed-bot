@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { format } from "date-fns";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
+import { ChevronDownIcon } from "lucide-react";
+import * as z from "zod";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -20,6 +23,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Field,
+  FieldLabel,
+  FieldError,
+  FieldGroup,
+} from "@/components/ui/field";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/lib/constants";
 import type {
   Task,
@@ -28,6 +43,34 @@ import type {
   CreateTaskInput,
   UpdateTaskInput,
 } from "@/lib/types";
+
+const taskFormSchema = z.object({
+  title: z
+    .string()
+    .min(1, "Title is required")
+    .max(200, "Title must be at most 200 characters"),
+  description: z
+    .string()
+    .max(1000, "Description must be at most 1000 characters")
+    .optional(),
+  status: z.enum(["todo", "in_progress", "done"]),
+  priority: z.enum(["low", "medium", "high", "urgent"]),
+  dueDate: z
+    .string()
+    .optional()
+    .refine(
+      (val) => {
+        if (!val) return true;
+        const date = new Date(val);
+        return date instanceof Date && !isNaN(date.valueOf());
+      },
+      {
+        message: "Invalid date format",
+      }
+    ),
+});
+
+type TaskFormValues = z.infer<typeof taskFormSchema>;
 
 interface TaskModalProps {
   open: boolean;
@@ -48,7 +91,7 @@ export function TaskModal({
 }: TaskModalProps) {
   const isEditing = !!task;
 
-  const initialValues = useMemo(() => {
+  const defaultValues = useMemo<TaskFormValues>(() => {
     if (task) {
       return {
         title: task.title,
@@ -69,66 +112,42 @@ export function TaskModal({
     };
   }, [task, defaultStatus]);
 
-  const [title, setTitle] = useState(initialValues.title);
-  const [description, setDescription] = useState(initialValues.description);
-  const [status, setStatus] = useState<TaskStatus>(initialValues.status);
-  const [priority, setPriority] = useState<TaskPriority>(
-    initialValues.priority
-  );
-  const [dueDate, setDueDate] = useState(initialValues.dueDate);
-  const [dateError, setDateError] = useState<string | null>(null);
+  const form = useForm<TaskFormValues>({
+    resolver: zodResolver(taskFormSchema),
+    defaultValues,
+  });
 
-  const validateAndFormatDate = (dateString: string): string | null => {
-    if (!dateString) return null;
-    const date = new Date(dateString);
-    if (date instanceof Date && !isNaN(date.valueOf())) {
-      return date.toISOString();
-    }
-    return null;
-  };
-
-  const resetForm = () => {
-    setTitle(initialValues.title);
-    setDescription(initialValues.description);
-    setStatus(initialValues.status);
-    setPriority(initialValues.priority);
-    setDueDate(initialValues.dueDate);
-    setDateError(null);
-  };
+  useEffect(() => {
+    form.reset(defaultValues);
+  }, [defaultValues, form]);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
-      resetForm();
+      form.reset(defaultValues);
     }
     onOpenChange(newOpen);
   };
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
-
-    const validatedDueDate = validateAndFormatDate(dueDate);
-    if (dueDate && !validatedDueDate) {
-      setDateError("Invalid date format. Please enter a valid date.");
-      return;
-    }
-    setDateError(null);
+  function onFormSubmit(data: TaskFormValues) {
+    const validatedDueDate = data.dueDate
+      ? new Date(data.dueDate).toISOString()
+      : null;
 
     if (isEditing && task) {
       onSubmit({
         id: task.id,
-        title: title.trim(),
-        description: description.trim() || null,
-        status,
-        priority,
+        title: data.title.trim(),
+        description: data.description?.trim() || null,
+        status: data.status,
+        priority: data.priority,
         due_date: validatedDueDate,
       });
     } else {
       onSubmit({
-        title: title.trim(),
-        description: description.trim() || null,
-        status,
-        priority,
+        title: data.title.trim(),
+        description: data.description?.trim() || null,
+        status: data.status,
+        priority: data.priority,
         due_date: validatedDueDate,
       });
     }
@@ -141,89 +160,167 @@ export function TaskModal({
           <DialogTitle>{isEditing ? "Edit Task" : "Create Task"}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter task title..."
-              autoFocus
+        <form
+          id="task-form"
+          onSubmit={form.handleSubmit(onFormSubmit)}
+          className="space-y-4"
+        >
+          <FieldGroup>
+            <Controller
+              name="title"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="task-form-title">Title</FieldLabel>
+                  <Input
+                    {...field}
+                    id="task-form-title"
+                    placeholder="Enter task title..."
+                    aria-invalid={fieldState.invalid}
+                    autoFocus
+                  />
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                </Field>
+              )}
             />
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add a description..."
-              rows={3}
+            <Controller
+              name="description"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="task-form-description">
+                    Description
+                  </FieldLabel>
+                  <Textarea
+                    {...field}
+                    id="task-form-description"
+                    placeholder="Add a description..."
+                    rows={3}
+                    aria-invalid={fieldState.invalid}
+                  />
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                </Field>
+              )}
             />
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={status}
-                onValueChange={(v) => setStatus(v as TaskStatus)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(TASK_STATUSES).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`w-2 h-2 rounded-full ${config.color}`}
+            <div className="grid grid-cols-3 gap-1">
+              <Controller
+                name="status"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="task-form-status">Status</FieldLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="task-form-status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(TASK_STATUSES).map(([key, config]) => (
+                          <SelectItem key={key} value={key}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`w-2 h-2 rounded-full ${config.color}`}
+                              />
+                              {config.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
+
+              <Controller
+                name="priority"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="task-form-priority">
+                      Priority
+                    </FieldLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="task-form-priority">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(TASK_PRIORITIES).map(
+                          ([key, config]) => (
+                            <SelectItem key={key} value={key}>
+                              <span className={config.textColor}>
+                                {config.label}
+                              </span>
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
+              <Controller
+                name="dueDate"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="task-form-dueDate">
+                      Due Date
+                    </FieldLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          id="task-form-dueDate"
+                          className="w-full justify-between font-normal"
+                          aria-invalid={fieldState.invalid}
+                        >
+                          {field.value
+                            ? new Date(field.value).toLocaleDateString()
+                            : "Select date"}
+                          <ChevronDownIcon />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-auto overflow-hidden p-0"
+                        align="start"
+                      >
+                        <Calendar
+                          mode="single"
+                          selected={
+                            field.value ? new Date(field.value) : undefined
+                          }
+                          captionLayout="dropdown"
+                          onSelect={(date) => {
+                            if (date) {
+                              const formattedDate = format(date, "yyyy-MM-dd");
+                              field.onChange(formattedDate);
+                            } else {
+                              field.onChange("");
+                            }
+                          }}
                         />
-                        {config.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      </PopoverContent>
+                    </Popover>
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
-              <Select
-                value={priority}
-                onValueChange={(v) => setPriority(v as TaskPriority)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(TASK_PRIORITIES).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      <span className={config.textColor}>{config.label}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="dueDate">Due Date</Label>
-            <Input
-              id="dueDate"
-              type="date"
-              value={dueDate}
-              onChange={(e) => {
-                setDueDate(e.target.value);
-                setDateError(null);
-              }}
-            />
-            {dateError && (
-              <p className="text-sm text-red-500 mt-1">{dateError}</p>
-            )}
-          </div>
+          </FieldGroup>
 
           <DialogFooter>
             <Button
@@ -233,7 +330,7 @@ export function TaskModal({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!title.trim() || isLoading}>
+            <Button type="submit" form="task-form" disabled={isLoading}>
               {isLoading
                 ? "Saving..."
                 : isEditing
