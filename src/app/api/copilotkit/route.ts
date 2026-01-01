@@ -16,7 +16,6 @@ const openai = new OpenAI({
 })
 
 const serviceAdapter = new OpenAIAdapter({
-    // @ts-expect-error - CopilotKit has internal OpenAI v4/v5 type conflicts. The adapter works correctly at runtime.
     openai
 })
 
