@@ -1,0 +1,2 @@
+export { CopilotSidebar } from "./CopilotSidebar"
+
