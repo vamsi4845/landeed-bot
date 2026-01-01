@@ -175,7 +175,7 @@ export function TaskBoard() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6 h-full">
           {STATUS_ORDER.map((status) => (
             <TaskColumn
               key={status}

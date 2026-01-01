@@ -104,3 +104,67 @@ export async function createSubtasks(
     return data
 }
 
+export async function seedTasks(): Promise<void> {
+    const supabase = await createClient()
+
+    const seedData = [
+        {
+            title: "Design landing page",
+            description: "Create wireframes and mockups for the new landing page",
+            status: "todo" as const,
+            priority: "high" as const,
+            due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+            title: "Set up CI/CD pipeline",
+            description: "Configure GitHub Actions for automated testing and deployment",
+            status: "in_progress" as const,
+            priority: "urgent" as const,
+            due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+            title: "Write API documentation",
+            description: "Document all endpoints with examples and error codes",
+            status: "todo" as const,
+            priority: "medium" as const,
+        },
+        {
+            title: "Fix authentication bug",
+            description: "Users are unable to log in with OAuth providers",
+            status: "done" as const,
+            priority: "high" as const,
+        },
+        {
+            title: "Optimize database queries",
+            description: "Review and optimize slow queries identified in production",
+            status: "todo" as const,
+            priority: "low" as const,
+        },
+        {
+            title: "Implement dark mode",
+            description: "Add theme switching functionality across all components",
+            status: "in_progress" as const,
+            priority: "medium" as const,
+        },
+        {
+            title: "Code review PR #123",
+            description: "Review the new feature implementation",
+            status: "todo" as const,
+            priority: "medium" as const,
+        },
+        {
+            title: "Update dependencies",
+            description: "Update all npm packages to latest versions",
+            status: "done" as const,
+            priority: "low" as const,
+        },
+    ]
+
+    const { error } = await supabase
+        .from("tasks")
+        .insert(seedData)
+
+    if (error) throw new Error(error.message)
+    revalidatePath("/")
+}
+

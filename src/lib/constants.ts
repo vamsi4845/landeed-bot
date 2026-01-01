@@ -1,9 +1,9 @@
 import type { TaskStatus, TaskPriority } from "./types"
 
 export const TASK_STATUSES = {
-  todo: { label: "To Do", color: "bg-slate-500" },
+  todo: { label: "To Do", color: "bg-yellow-500" },
   in_progress: { label: "In Progress", color: "bg-blue-500" },
-  done: { label: "Done", color: "bg-green-500" },
+  done: { label: "Done", color: "bg-pink-500" },
 } as const satisfies Record<TaskStatus, { label: string; color: string }>
 
 export const TASK_PRIORITIES = {

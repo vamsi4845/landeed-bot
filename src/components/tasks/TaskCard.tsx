@@ -7,6 +7,7 @@ import {
   Calendar,
   GripVertical,
   MoreHorizontal,
+  MoreVertical,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -53,87 +54,67 @@ export function TaskCard({ task, onEdit, onDelete }: TaskCardProps) {
     <Card
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
       className={cn(
         "group cursor-grab active:cursor-grabbing transition-all duration-200",
-        "bg-card/50 backdrop-blur-sm border-border/50 hover:border-border",
+        "bg-card backdrop-blur-sm border-border/50 hover:border-border",
         "hover:shadow-lg hover:shadow-primary/5",
         isDragging && "opacity-50 shadow-xl rotate-2",
         isOverdue && "border-red-500/50 shadow-red-500/10"
       )}
     >
       <CardContent className="p-3">
-        <div className="flex items-start gap-2">
-          <button
-            {...attributes}
-            {...listeners}
-            className="mt-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
-            aria-label={`Reorder ${task.title}`}
-          >
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
-          </button>
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-medium text-sm leading-tight line-clamp-2">
+              {task.title}
+            </h3>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onEdit(task)}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onDelete(task.id)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-          <div className="flex-1 min-w-0 space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="font-medium text-sm leading-tight line-clamp-2">
-                {task.title}
-              </h3>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0"
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onEdit(task)}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onDelete(task.id)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+          {task.description && (
+            <p className="text-xs text-muted-foreground line-clamp-2">
+              {task.description}
+            </p>
+          )}
 
-            {task.description && (
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                {task.description}
-              </p>
-            )}
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge
-                variant="secondary"
+          <div className="flex items-center justify-between gap-2">
+            <Badge variant="outline" className={cn(priorityConfig.textColor)}>
+              {priorityConfig.label}
+            </Badge>
+            {task.due_date && (
+              <div
                 className={cn(
-                  "text-[10px] px-1.5 py-0 h-5",
-                  priorityConfig.textColor
+                  "flex items-center gap-1 text-[10px]",
+                  isOverdue && "text-red-400",
+                  isDueToday && !isOverdue && "text-orange-400",
+                  !isOverdue && !isDueToday && "text-muted-foreground"
                 )}
               >
-                {priorityConfig.label}
-              </Badge>
-
-              {task.due_date && (
-                <div
-                  className={cn(
-                    "flex items-center gap-1 text-[10px]",
-                    isOverdue && "text-red-400",
-                    isDueToday && !isOverdue && "text-orange-400",
-                    !isOverdue && !isDueToday && "text-muted-foreground"
-                  )}
-                >
-                  <Calendar className="h-3 w-3" />
-                  {format(new Date(task.due_date), "MMM d")}
-                </div>
-              )}
-            </div>
+                <Calendar className="h-3 w-3" />
+                {format(new Date(task.due_date), "MMM d")}
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

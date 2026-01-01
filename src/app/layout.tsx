@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${GeistSans.variable} ${GeistMono.variable} font-sans antialiased`}
       >
@@ -29,7 +29,7 @@ export default function RootLayout({
             <CopilotProvider>
               {children}
               <CopilotSidebar />
-              <Toaster position="bottom-right" />
+              <Toaster position="top-right" />
             </CopilotProvider>
           </QueryProvider>
         </ThemeProvider>

@@ -4,9 +4,23 @@ import { HeaderProps, useChatContext } from "@copilotkit/react-ui";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useEffect } from "react";
 
 export function CopilotHeader({}: HeaderProps) {
-  const { setOpen, icons, labels } = useChatContext();
+  const { setOpen, open, icons, labels } = useChatContext();
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+        event.preventDefault();
+        setOpen(!open);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [setOpen, open]);
+
   return (
     <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar px-4 py-3">
       <Link

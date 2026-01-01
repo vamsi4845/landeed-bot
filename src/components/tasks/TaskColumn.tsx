@@ -34,31 +34,31 @@ export function TaskColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col h-full min-h-[500px] rounded-xl",
-        "bg-muted/30 border border-border/50",
-        "transition-colors duration-200",
-        isOver && "bg-primary/5 border-primary/30"
+        "flex flex-col h-full min-h-[600px] rounded-xl",
+        "bg-accent backdrop-blur-sm",
+        "shadow-sm transition-all duration-200",
+        isOver && "bg-primary/5 border-primary/40 shadow-md"
       )}
     >
-      <div className="flex items-center justify-between p-4 border-b border-border/50">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2.5">
           <div className={cn("w-2 h-2 rounded-full", statusConfig.color)} />
-          <h2 className="font-semibold text-sm">{statusConfig.label}</h2>
-          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+          <h2 className="text-sm text-foreground">{statusConfig.label}</h2>
+          <span className="text-xs font-medium text-muted-foreground px-2 py-0.5 rounded-full border">
             {tasks.length}
           </span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="h-8 w-8 hover:bg-accent"
           onClick={() => onAddTask(status)}
           aria-label={`Add task to ${statusConfig.label}`}
         >
           <Plus className="h-4 w-4" />
         </Button>
       </div>
-      <div className="flex-1 p-3 space-y-2 overflow-y-auto">
+      <div className="flex-1 p-3 space-y-3 overflow-y-auto max-h-[calc(100vh-200px)]">
         <SortableContext
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
@@ -74,15 +74,15 @@ export function TaskColumn({
         </SortableContext>
 
         {tasks.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-            <p className="text-sm">No tasks</p>
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <p className="text-sm font-medium mb-3">No tasks</p>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="mt-2"
+              className="border-dashed"
               onClick={() => onAddTask(status)}
             >
-              <Plus className="h-4 w-4 mr-1" />
+              <Plus className="h-4 w-4 mr-1.5" />
               Add task
             </Button>
           </div>
