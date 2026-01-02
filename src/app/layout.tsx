@@ -9,7 +9,7 @@ import { CopilotSidebar } from "@/components/copilot";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Landeed Bot - AI-Powered Task Management",
+  title: "Task Copilot - AI-Powered Task Management",
   description:
     "Manage your tasks with an intelligent AI copilot that helps you plan, prioritize, and execute.",
 };
