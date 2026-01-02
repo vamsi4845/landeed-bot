@@ -2,6 +2,7 @@
 
 import { Moon, Sun, Monitor } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useLayoutEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,27 +12,25 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function ThemeSwitch() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
-  if (!resolvedTheme) {
-    return (
-      <Button variant="ghost" size="icon" className="h-9 w-9">
-        <Sun className="h-4 w-4" />
-      </Button>
-    );
-  }
+  useLayoutEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const getIcon = () => {
+    if (!mounted) return <Sun className="h-4 w-4" />;
+    if (theme === "light") return <Sun className="h-4 w-4" />;
+    if (theme === "dark") return <Moon className="h-4 w-4" />;
+    return <Monitor className="h-4 w-4" />;
+  };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="h-9 w-9">
-          {theme === "light" ? (
-            <Sun className="h-4 w-4" />
-          ) : theme === "dark" ? (
-            <Moon className="h-4 w-4" />
-          ) : (
-            <Monitor className="h-4 w-4" />
-          )}
+          {getIcon()}
           <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
