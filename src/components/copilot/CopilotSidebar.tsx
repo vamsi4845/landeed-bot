@@ -7,6 +7,7 @@ import { COPILOT_LABELS, COPILOT_INSTRUCTIONS } from "@/lib/copilot-prompts";
 import { CopilotHeader } from "./CopilotHeader";
 import { CopilotSuggestionsList } from "./CopilotSuggestionsList";
 import { CopilotErrorMessage } from "./CopilotErrorMessage";
+import { CopilotUserMessage } from "./CopilotUserMessage";
 
 export function CopilotSidebar() {
   useCopilotActions();
@@ -20,6 +21,7 @@ export function CopilotSidebar() {
       Header={CopilotHeader}
       RenderSuggestionsList={CopilotSuggestionsList}
       ErrorMessage={CopilotErrorMessage}
+      UserMessage={CopilotUserMessage}
       className="copilotKitSidebar"
     />
   );

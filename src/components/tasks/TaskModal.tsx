@@ -330,7 +330,12 @@ export function TaskModal({
             >
               Cancel
             </Button>
-            <Button type="submit" form="task-form" disabled={isLoading}>
+            <Button
+              className="bg-foreground text-background hover:bg-foreground/90"
+              type="submit"
+              form="task-form"
+              disabled={isLoading}
+            >
               {isLoading
                 ? "Saving..."
                 : isEditing
