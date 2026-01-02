@@ -122,10 +122,7 @@ Press `Cmd+K` (Mac) or `Ctrl+K` (Windows) to open the copilot sidebar.
 - **Hosted**: No database server to manage
 
 ### Why OpenAI over Google Gemini?
-- **Better integration**: OpenAI adapter has more stable type compatibility with CopilotKit
-- **Proven performance**: GPT models excel at task analysis and natural language understanding
-- **Reliable API**: More consistent response times and fewer rate limits
-- **Future-proof**: Easier to upgrade to newer models (GPT-4, GPT-4 Turbo)
+I initially started with the Google Gemini adapter, but encountered rate limiting issues. Switching to OpenAI was seamless—requiring only 2-3 lines of code changes—demonstrating CopilotKit's flexibility to use any model adapter you prefer.
 
 ### AI Safety Guardrails
 
