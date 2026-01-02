@@ -183,8 +183,22 @@ export function useCopilotActions() {
             {
                 name: "subtasks",
                 type: "object[]",
-                description: "Array of subtasks with title and optional description",
+                description: "Array of subtasks. Each subtask object must have a 'title' (string, required) and optionally a 'description' (string). Example: [{ title: 'Subtask 1', description: 'Optional description' }, { title: 'Subtask 2' }]",
                 required: true,
+                properties: [
+                    {
+                        name: "title",
+                        type: "string",
+                        description: "The title of the subtask",
+                        required: true,
+                    },
+                    {
+                        name: "description",
+                        type: "string",
+                        description: "Optional description for the subtask",
+                        required: false,
+                    },
+                ],
             },
         ],
         handler: async ({ taskTitle, subtasks }) => {
