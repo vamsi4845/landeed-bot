@@ -202,4 +202,7 @@ I initially started with the Google Gemini adapter, but encountered rate limitin
 ```
 
 
-Link to the deployed app: [Task Copilot](https://task-copilot.vamsi.app/)
+### Links
+- [Demo](https://dar5y10gv8dj8.cloudfront.net/others/Task_Copilot_Intro.mp4)
+- [Live](https://task-copilot.vamsi.app/)
+
