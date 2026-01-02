@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
-import type { Task, CreateTaskInput, UpdateTaskInput, TasksByStatus } from "@/lib/types"
+import type { Task, CreateTaskInput, UpdateTaskInput, TasksByStatus, GroupedTask } from "@/lib/types"
 
 const TASKS_KEY = ["tasks"]
 
@@ -72,14 +72,46 @@ export function useTasksByStatus() {
     }
 
     if (tasks) {
-        tasks.forEach((task) => {
-            if (task.parent_id === null) {
-                tasksByStatus[task.status].push(task)
-            }
+        tasks.map((task) => {
+            tasksByStatus[task.status].push(task)
         })
     }
 
     return { data: tasksByStatus, tasks, ...rest }
+}
+
+export function useGroupedTasksByStatus() {
+    const { data: tasks, ...rest } = useTasks()
+
+    const groupedTasksByStatus: Record<"todo" | "in_progress" | "done", GroupedTask[]> = {
+        todo: [],
+        in_progress: [],
+        done: [],
+    }
+
+    if (tasks) {
+        const parentTasks = tasks.filter((task) => !task.parent_id)
+        const subtasksMap = new Map<string, Task[]>()
+
+        tasks.forEach((task) => {
+            if (task.parent_id) {
+                const existing = subtasksMap.get(task.parent_id) || []
+                existing.push(task)
+                subtasksMap.set(task.parent_id, existing)
+            }
+        })
+
+        parentTasks.forEach((parentTask) => {
+            const subtasks = subtasksMap.get(parentTask.id) || []
+            const groupedTask: GroupedTask = subtasks.length > 0
+                ? { ...parentTask, subtasks }
+                : parentTask
+
+            groupedTasksByStatus[parentTask.status].push(groupedTask)
+        })
+    }
+
+    return { data: groupedTasksByStatus, tasks, ...rest }
 }
 
 export function useCreateTask() {

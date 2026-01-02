@@ -18,7 +18,7 @@ export function useCopilotActions() {
     const updateTask = useUpdateTask();
     const createSubtasks = useCreateSubtasks();
     const deleteTask = useDeleteTask();
-
+    console.log(tasks)
     useCopilotAdditionalInstructions({
         instructions: COPILOT_ADDITIONAL_INSTRUCTIONS,
     });
@@ -172,12 +172,12 @@ export function useCopilotActions() {
     useFrontendTool({
         name: "breakdownTask",
         description:
-            "Break a task into smaller subtasks. Always show the subtasks to the user and ask for confirmation before creating them.",
+            "Break a task into smaller subtasks. Always show the subtasks to the user and ask for confirmation before creating them. Provide the task title (can be partial match, e.g., 'api documentation' will match 'Write API documentation'). Use the findTask tool if needed to locate the exact task.",
         parameters: [
             {
-                name: "parentTaskId",
+                name: "taskTitle",
                 type: "string",
-                description: "The ID of the task to break down",
+                description: "The title of the task to break down. Can be a partial match (e.g., 'api documentation' will match 'Write API documentation'). If unsure, use findTask first to get the exact title.",
                 required: true,
             },
             {
@@ -187,28 +187,97 @@ export function useCopilotActions() {
                 required: true,
             },
         ],
-        handler: async ({ parentTaskId, subtasks }) => {
-            const parentTask = tasks?.find((t) => t.id === parentTaskId);
-            if (!parentTask) return "Parent task not found";
+        handler: async ({ taskTitle, subtasks }) => {
+            console.log("breakdownTask called with:", { taskTitle, subtasks, tasksCount: tasks?.length });
+
+            if (!tasks || tasks.length === 0) {
+                return "No tasks available. Please create a task first.";
+            }
+
+            if (!taskTitle || taskTitle.trim() === "") {
+                const availableTasks = tasks
+                    .slice(0, 10)
+                    .map((t) => `"${t.title}" (ID: ${t.id})`)
+                    .join("\n");
+                return `Task title is required. Please provide the task title. Available tasks:\n${availableTasks}\n\nUse the findTask tool first to locate the task you want to break down.`;
+            }
+
+            const searchTerm = taskTitle.toLowerCase().trim();
+            const searchWords = searchTerm.split(/\s+/).filter(w => w.length > 0);
+
+            let parentTask = tasks.find((t) => t.id === taskTitle);
+
+            if (!parentTask) {
+                const matchingTasks = tasks.filter((t) => {
+                    const taskTitleLower = t.title.toLowerCase();
+                    const exactMatch = taskTitleLower === searchTerm || taskTitleLower.includes(searchTerm);
+
+                    if (exactMatch) return true;
+
+                    if (searchWords.length > 1) {
+                        const allWordsMatch = searchWords.every(word => taskTitleLower.includes(word));
+                        if (allWordsMatch) return true;
+                    }
+
+                    return false;
+                });
+
+                if (matchingTasks.length === 0) {
+                    const allTaskTitles = tasks
+                        .map((t) => `- "${t.title}" (ID: ${t.id})`)
+                        .join("\n");
+                    return `Task not found: "${taskTitle}". Please use findTask tool to locate the correct task, or use one of these available tasks:\n${allTaskTitles}`;
+                }
+
+                if (matchingTasks.length > 1) {
+                    const taskList = matchingTasks
+                        .map((t) => `- "${t.title}" (ID: ${t.id})`)
+                        .join("\n");
+                    return `Multiple tasks found matching "${taskTitle}". Please use a more specific title or the exact task ID from this list:\n${taskList}`;
+                }
+
+                parentTask = matchingTasks[0];
+            }
 
             try {
-                const subtaskData = (
-                    subtasks as Array<{ title: string; description?: string }>
-                ).map((s) => ({
-                    title: s.title,
-                    description: s.description,
-                }));
+                let subtaskArray: Array<{ title: string; description?: string }>;
+
+                if (typeof subtasks === "string") {
+                    subtaskArray = JSON.parse(subtasks);
+                } else if (Array.isArray(subtasks)) {
+                    subtaskArray = subtasks;
+                } else {
+                    return "Invalid subtasks format. Expected JSON string or array.";
+                }
+
+                if (!Array.isArray(subtaskArray) || subtaskArray.length === 0) {
+                    return "Subtasks must be a non-empty array.";
+                }
+
+                const subtaskData = subtaskArray.map((s) => {
+                    if (!s.title || typeof s.title !== "string") {
+                        throw new Error("Each subtask must have a title string");
+                    }
+                    return {
+                        title: s.title,
+                        description: s.description || undefined,
+                    };
+                });
+
                 await createSubtasks.mutateAsync({
-                    parentId: parentTaskId,
+                    parentId: parentTask.id,
                     subtasks: subtaskData,
                 });
+
                 toast.success(
                     `Created ${subtaskData.length} subtasks for "${parentTask.title}"`
                 );
-                return `Successfully created ${subtaskData.length} subtasks for "${parentTask.title}"`;
-            } catch {
-                toast.error("Failed to create subtasks");
-                return "Failed to create subtasks";
+                return `Successfully created ${subtaskData.length} subtasks for "${parentTask.title}" (ID: ${parentTask.id})`;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                console.error("Failed to create subtasks:", error);
+                toast.error(`Failed to create subtasks: ${errorMessage}`);
+                return `Failed to create subtasks: ${errorMessage}`;
             }
         },
     });
@@ -267,6 +336,48 @@ export function useCopilotActions() {
                 toast.error("Failed to delete task");
                 return "Failed to delete task";
             }
+        },
+    });
+
+    useFrontendTool({
+        name: "findTask",
+        description:
+            "Find a task by title. Returns task details including ID, status, priority, and description.",
+        parameters: [
+            {
+                name: "title",
+                type: "string",
+                description: "The title or partial title of the task to find (case-insensitive)",
+                required: true,
+            },
+        ],
+        handler: async ({ title }) => {
+            if (!tasks || tasks.length === 0) {
+                return "No tasks found in the workspace";
+            }
+
+            const searchTerm = title.toLowerCase().trim();
+            const matchingTasks = tasks.filter((t) =>
+                t.title.toLowerCase().includes(searchTerm)
+            );
+
+            if (matchingTasks.length === 0) {
+                return `No tasks found matching "${title}"`;
+            }
+
+            if (matchingTasks.length === 1) {
+                const task = matchingTasks[0];
+                return `Found task: "${task.title}" (ID: ${task.id})\nStatus: ${task.status}\nPriority: ${task.priority}${task.description ? `\nDescription: ${task.description}` : ""}${task.due_date ? `\nDue Date: ${new Date(task.due_date).toLocaleDateString()}` : ""}`;
+            }
+
+            const taskList = matchingTasks
+                .map(
+                    (t) =>
+                        `- "${t.title}" (ID: ${t.id}) - ${t.status} - ${t.priority}`
+                )
+                .join("\n");
+            console.log(`Found ${matchingTasks.length} tasks matching "${title}":\n${taskList}`)
+            return `Found ${matchingTasks.length} tasks matching "${title}":\n${taskList}`;
         },
     });
 

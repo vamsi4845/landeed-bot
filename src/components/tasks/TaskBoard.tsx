@@ -17,7 +17,7 @@ import { TaskCard } from "./TaskCard";
 import { TaskModal } from "./TaskModal";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import {
-  useTasksByStatus,
+  useGroupedTasksByStatus,
   useCreateTask,
   useUpdateTask,
   useDeleteTask,
@@ -37,7 +37,7 @@ export function TaskBoard() {
     tasks,
     isError,
     error,
-  } = useTasksByStatus();
+  } = useGroupedTasksByStatus();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();

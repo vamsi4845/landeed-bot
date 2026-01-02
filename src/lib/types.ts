@@ -38,3 +38,9 @@ export type TasksByStatus = {
   done: Task[]
 }
 
+export interface TaskWithSubtasks extends Task {
+  subtasks: Task[]
+}
+
+export type GroupedTask = TaskWithSubtasks | Task
+

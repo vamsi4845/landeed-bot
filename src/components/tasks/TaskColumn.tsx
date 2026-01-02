@@ -8,13 +8,19 @@ import {
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TaskCard } from "./TaskCard";
+import { TaskGroupCard } from "./TaskGroupCard";
 import { TASK_STATUSES } from "@/lib/constants";
-import type { Task, TaskStatus } from "@/lib/types";
+import type {
+  Task,
+  TaskStatus,
+  GroupedTask,
+  TaskWithSubtasks,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface TaskColumnProps {
   status: TaskStatus;
-  tasks: Task[];
+  tasks: GroupedTask[];
   onAddTask: (status: TaskStatus) => void;
   onEditTask: (task: Task) => void;
   onDeleteTask: (id: string) => void;
@@ -63,14 +69,26 @@ export function TaskColumn({
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
         >
-          {tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onEdit={onEditTask}
-              onDelete={onDeleteTask}
-            />
-          ))}
+          {tasks.map((task) => {
+            const hasSubtasks = "subtasks" in task && task.subtasks.length > 0;
+            return hasSubtasks ? (
+              <TaskGroupCard
+                key={task.id}
+                task={task as TaskWithSubtasks}
+                onEdit={onEditTask}
+                onDelete={onDeleteTask}
+                onEditSubtask={onEditTask}
+                onDeleteSubtask={onDeleteTask}
+              />
+            ) : (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onEdit={onEditTask}
+                onDelete={onDeleteTask}
+              />
+            );
+          })}
         </SortableContext>
 
         {tasks.length === 0 && (

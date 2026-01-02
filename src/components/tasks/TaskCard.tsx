@@ -1,19 +1,8 @@
 "use client";
 
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { format, isPast, isToday } from "date-fns";
-import {
-  Calendar,
-  GripVertical,
-  MoreHorizontal,
-  MoreVertical,
-  Pencil,
-  Trash2,
-} from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +12,10 @@ import {
 import { TASK_PRIORITIES } from "@/lib/constants";
 import type { Task } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { format, isPast, isToday } from "date-fns";
+import { Calendar, MoreVertical, Pencil, Trash2 } from "lucide-react";
 
 interface TaskCardProps {
   task: Task;

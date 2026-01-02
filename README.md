@@ -21,7 +21,7 @@ A task management application with an embedded AI copilot that helps users plan,
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Next.js Application                       │
+│                    Next.js Application                      │
 ├─────────────────────────────────────────────────────────────┤
 │  Frontend (React)           │  API Routes                   │
 │  ├─ Task Board UI           │  ├─ /api/tasks (CRUD)         │
@@ -29,7 +29,7 @@ A task management application with an embedded AI copilot that helps users plan,
 │  ├─ React Query State       │      ├─ CopilotRuntime        │
 │  └─ Copilot Sidebar         │      └─ OpenAIAdapter         │
 ├─────────────────────────────────────────────────────────────┤
-│                    Supabase (PostgreSQL)                     │
+│                    Supabase (PostgreSQL)                    │
 │  └─ tasks table with RLS policies                           │
 └─────────────────────────────────────────────────────────────┘
 ```
