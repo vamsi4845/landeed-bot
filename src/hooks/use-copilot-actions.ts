@@ -234,7 +234,6 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            console.log("params", params)
             const { task_id, parent_task_id, subtasks } = params as {
                 task_id?: string;
                 parent_task_id?: string;
