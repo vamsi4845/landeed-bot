@@ -200,3 +200,6 @@ I initially started with the Google Gemini adapter, but encountered rate limitin
 │   ├── types.ts                    # TypeScript interfaces
 │   └── utils.ts                    # Utility functions
 ```
+
+
+Link to the deployed app: [Task Copilot](https://task-copilot.vamsi.app/)
