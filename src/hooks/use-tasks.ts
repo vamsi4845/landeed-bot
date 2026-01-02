@@ -209,9 +209,44 @@ export function useUpdateTask() {
             if (error) throw new Error(error.message)
             return data
         },
-        onSuccess: () => {
+        onMutate: (input) => {
+            if (!isSupabaseConfigured()) {
+                return
+            }
+
+            queryClient.cancelQueries({ queryKey: TASKS_KEY })
+
+            const previousTasks = queryClient.getQueryData<Task[]>(TASKS_KEY)
+
+            queryClient.setQueryData<Task[]>(TASKS_KEY, (old) =>
+                (old || []).map((task) => {
+                    if (task.id === input.id) {
+                        return {
+                            ...task,
+                            ...(input.title !== undefined && { title: input.title }),
+                            ...(input.description !== undefined && { description: input.description }),
+                            ...(input.status !== undefined && { status: input.status }),
+                            ...(input.priority !== undefined && { priority: input.priority }),
+                            ...(input.due_date !== undefined && { due_date: input.due_date }),
+                            updated_at: new Date().toISOString(),
+                        }
+                    }
+                    return task
+                })
+            )
+
+            return { previousTasks }
+        },
+        onError: (error, input, context) => {
+            if (context?.previousTasks) {
+                queryClient.setQueryData<Task[]>(TASKS_KEY, context.previousTasks)
+            }
+        },
+        onSuccess: (data) => {
             if (isSupabaseConfigured()) {
-                queryClient.invalidateQueries({ queryKey: TASKS_KEY })
+                queryClient.setQueryData<Task[]>(TASKS_KEY, (old) =>
+                    (old || []).map((task) => (task.id === data.id ? data : task))
+                )
             }
         },
     })

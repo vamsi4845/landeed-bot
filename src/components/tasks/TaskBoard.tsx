@@ -114,7 +114,7 @@ export function TaskBoard() {
   );
 
   const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
+    (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveTask(null);
 
@@ -132,12 +132,17 @@ export function TaskBoard() {
         : tasks?.find((t) => t.id === overId)?.status;
 
       if (newStatus && newStatus !== activeTaskItem.status) {
-        try {
-          await updateTask.mutateAsync({ id: activeId, status: newStatus });
-          toast.success(`Moved to ${newStatus.replace("_", " ")}`);
-        } catch {
-          toast.error("Failed to update task");
-        }
+        updateTask.mutate(
+          { id: activeId, status: newStatus },
+          {
+            onSuccess: () => {
+              toast.success(`Moved to ${newStatus.replace("_", " ")}`);
+            },
+            onError: () => {
+              toast.error("Failed to update task");
+            },
+          }
+        );
       }
     },
     [tasks, updateTask]
@@ -188,15 +193,9 @@ export function TaskBoard() {
           ))}
         </div>
 
-        <DragOverlay>
+        <DragOverlay dropAnimation={null}>
           {activeTask && (
-            <div className="rotate-3 opacity-90">
-              <TaskCard
-                task={activeTask}
-                onEdit={() => {}}
-                onDelete={() => {}}
-              />
-            </div>
+            <TaskCard task={activeTask} onEdit={() => {}} onDelete={() => {}} />
           )}
         </DragOverlay>
       </DndContext>

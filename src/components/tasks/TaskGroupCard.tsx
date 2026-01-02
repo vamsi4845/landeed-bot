@@ -12,8 +12,12 @@ import {
 import { TASK_PRIORITIES } from "@/lib/constants";
 import type { Task, TaskWithSubtasks } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useSortable } from "@dnd-kit/sortable";
+import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
+import type { AnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
+const animateLayoutChanges: AnimateLayoutChanges = (args) =>
+  defaultAnimateLayoutChanges({ ...args, wasDragging: true });
 import { format, isPast, isToday } from "date-fns";
 import {
   Calendar,
@@ -48,7 +52,7 @@ export function TaskGroupCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, animateLayoutChanges });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -76,7 +80,7 @@ export function TaskGroupCard({
         "group transition-all duration-200",
         "bg-card backdrop-blur-sm border-border/50 hover:border-border",
         "hover:shadow-lg hover:shadow-primary/5",
-        isDragging && "opacity-50 shadow-xl rotate-2",
+        isDragging && "opacity-50 shadow-xl",
         isOverdue && "border-red-500/50 shadow-red-500/10"
       )}
     >
