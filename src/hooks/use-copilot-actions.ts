@@ -9,8 +9,57 @@ import {
     useDeleteTask,
 } from "@/hooks/use-tasks";
 import { toast } from "sonner";
-import type { TaskStatus, TaskPriority } from "@/lib/types";
+import type { TaskStatus, TaskPriority, Task } from "@/lib/types";
 import { COPILOT_ADDITIONAL_INSTRUCTIONS } from "@/lib/copilot-prompts";
+
+const VALID_STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
+const VALID_PRIORITIES: TaskPriority[] = ["low", "medium", "high", "urgent"];
+
+function normalizeStatus(value: string | undefined): TaskStatus | undefined {
+    if (!value) return undefined;
+    const normalized = value.toLowerCase().trim().replace(/[\s-]+/g, "_");
+    if (normalized === "in_progress" || normalized === "inprogress") return "in_progress";
+    return VALID_STATUSES.includes(normalized as TaskStatus) ? (normalized as TaskStatus) : undefined;
+}
+
+function normalizePriority(value: string | undefined): TaskPriority | undefined {
+    if (!value) return undefined;
+    const normalized = value.toLowerCase().trim();
+    return VALID_PRIORITIES.includes(normalized as TaskPriority) ? (normalized as TaskPriority) : undefined;
+}
+
+function normalizeDate(value: string | undefined | null): string | null {
+    if (!value || value === "null" || value === "") return null;
+    try {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) return null;
+        return date.toISOString().split("T")[0];
+    } catch {
+        return null;
+    }
+}
+
+function findTaskByIdOrTitle(tasks: Task[] | undefined, identifier: string): { task: Task | null; error: string | null; suggestions?: string } {
+    if (!tasks || tasks.length === 0) {
+        return { task: null, error: "No tasks available." };
+    }
+
+    const exactMatch = tasks.find((t) => t.id === identifier);
+    if (exactMatch) return { task: exactMatch, error: null };
+
+    const searchTerm = identifier.toLowerCase().trim();
+    const matches = tasks.filter((t) => t.title.toLowerCase().includes(searchTerm));
+
+    if (matches.length === 0) {
+        const available = tasks.slice(0, 5).map((t) => `• "${t.title}" (ID: ${t.id})`).join("\n");
+        return { task: null, error: `No task found matching "${identifier}".`, suggestions: available };
+    }
+
+    if (matches.length === 1) return { task: matches[0], error: null };
+
+    const list = matches.map((t) => `• "${t.title}" (ID: ${t.id})`).join("\n");
+    return { task: null, error: `Multiple tasks match "${identifier}". Use findTask to get the exact ID:\n${list}` };
+}
 
 export function useCopilotActions() {
     const { data: tasks } = useTasks();
@@ -18,13 +67,22 @@ export function useCopilotActions() {
     const updateTask = useUpdateTask();
     const createSubtasks = useCreateSubtasks();
     const deleteTask = useDeleteTask();
+
     useCopilotAdditionalInstructions({
         instructions: COPILOT_ADDITIONAL_INSTRUCTIONS,
     });
 
     useCopilotReadable({
-        description: "The current list of tasks in the workspace",
-        value: tasks || [],
+        description: "Current tasks in the workspace with their IDs, titles, statuses, priorities, and due dates",
+        value: tasks?.map((t) => ({
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            priority: t.priority,
+            due_date: t.due_date,
+            has_subtasks: tasks.some((s) => s.parent_id === t.id),
+            is_subtask: !!t.parent_id,
+        })) || [],
     });
 
     useCopilotReadable({
@@ -34,458 +92,355 @@ export function useCopilotActions() {
             todo: tasks?.filter((t) => t.status === "todo").length || 0,
             inProgress: tasks?.filter((t) => t.status === "in_progress").length || 0,
             done: tasks?.filter((t) => t.status === "done").length || 0,
-            highPriority:
-                tasks?.filter((t) => t.priority === "high" || t.priority === "urgent")
-                    .length || 0,
-            overdue:
-                tasks?.filter((t) => {
-                    if (!t.due_date || t.status === "done") return false;
-                    return new Date(t.due_date) < new Date();
-                }).length || 0,
+            highPriority: tasks?.filter((t) => t.priority === "high" || t.priority === "urgent").length || 0,
+            overdue: tasks?.filter((t) => {
+                if (!t.due_date || t.status === "done") return false;
+                return new Date(t.due_date) < new Date();
+            }).length || 0,
+        },
+    });
+
+    useFrontendTool({
+        name: "findTask",
+        description: "Find a task by title to get its ID. ALWAYS use this before updateTask, deleteTask, markTaskComplete, or breakdownTask.",
+        parameters: [
+            {
+                name: "searchTerm",
+                type: "string",
+                description: "The title or partial title to search for (case-insensitive)",
+                required: true,
+            },
+        ],
+        handler: async (params) => {
+            console.log(" findTask params", params);
+            const { searchTerm } = params;
+            if (!searchTerm || typeof searchTerm !== "string") {
+                return "Search term is required.";
+            }
+
+            if (!tasks || tasks.length === 0) {
+                return "No tasks found in the workspace.";
+            }
+
+            const term = searchTerm.toLowerCase().trim();
+            const matches = tasks.filter((t) => t.title.toLowerCase().includes(term));
+
+            if (matches.length === 0) {
+                return `No tasks found matching "${searchTerm}".`;
+            }
+
+            if (matches.length === 1) {
+                const t = matches[0];
+                return `Found: "${t.title}"\nID: ${t.id}\nStatus: ${t.status}\nPriority: ${t.priority}${t.due_date ? `\nDue: ${new Date(t.due_date).toLocaleDateString()}` : ""}${t.description ? `\nDescription: ${t.description}` : ""}`;
+            }
+
+            const list = matches.map((t) => `• "${t.title}" (ID: ${t.id}) - ${t.status}, ${t.priority}`).join("\n");
+            return `Found ${matches.length} tasks:\n${list}\n\nUse the exact ID for operations.`;
         },
     });
 
     useFrontendTool({
         name: "createTask",
-        description:
-            "Create a new task. Always confirm with the user before creating.",
+        description: "Create a new task. Confirm with user before creating.",
         parameters: [
             {
                 name: "title",
                 type: "string",
-                description: "The task title",
+                description: "Task title (required)",
                 required: true,
             },
             {
                 name: "description",
                 type: "string",
-                description: "Optional task description",
+                description: "Task description (optional)",
             },
             {
                 name: "priority",
                 type: "string",
-                description: "Priority: low, medium, high, or urgent",
+                description: "One of: low, medium, high, urgent. Default: medium",
             },
             {
                 name: "status",
                 type: "string",
-                description: "Status: todo, in_progress, or done",
+                description: "One of: todo, in_progress, done. Default: todo",
             },
             {
                 name: "due_date",
                 type: "string",
-                description: "Optional due date in ISO format",
+                description: "Due date in YYYY-MM-DD format (optional)",
             },
         ],
-        handler: async ({ title, description, priority, status, due_date }) => {
+        handler: async (params) => {
+            console.log(" createTask params", params);
+            const { title, description, priority, status, due_date } = params;
+            if (!title || typeof title !== "string" || title.trim() === "") {
+                return "Task title is required.";
+            }
+
+            const validatedPriority = normalizePriority(priority) || "medium";
+            const validatedStatus = normalizeStatus(status) || "todo";
+            const validatedDate = normalizeDate(due_date);
+
             try {
                 await createTask.mutateAsync({
-                    title,
-                    description: description || null,
-                    priority: (priority as TaskPriority) || "medium",
-                    status: (status as TaskStatus) || "todo",
-                    due_date: due_date || null,
+                    title: title.trim(),
+                    description: description?.trim() || null,
+                    priority: validatedPriority,
+                    status: validatedStatus,
+                    due_date: validatedDate,
                 });
-                toast.success(`Created task: ${title}`);
-                return `Successfully created task: "${title}"`;
+                toast.success(`Created: ${title}`);
+                return `Created task "${title}" (status: ${validatedStatus}, priority: ${validatedPriority}${validatedDate ? `, due: ${validatedDate}` : ""})`;
             } catch {
                 toast.error("Failed to create task");
-                return "Failed to create task";
+                return "Failed to create task. Please try again.";
             }
         },
     });
 
     useFrontendTool({
         name: "updateTask",
-        description: "Update one or more fields of an existing task. Use findTask first to get the exact task ID. Only provide the fields you want to update. Ask for confirmation before updating.",
+        description: "Update an existing task. Use findTask first to get the task ID. Only provide fields you want to change.",
         parameters: [
             {
-                name: "taskId",
+                name: "id",
                 type: "string",
-                description: "The ID of the task to update",
+                description: "The task ID (UUID) from findTask. Required.",
                 required: true,
             },
             {
                 name: "title",
                 type: "string",
-                description: "New task title (optional)",
+                description: "New title (optional)",
             },
             {
                 name: "description",
                 type: "string",
-                description: "New task description (optional, use null or empty string to clear)",
+                description: "New description. Use empty string to clear. (optional)",
             },
             {
                 name: "status",
                 type: "string",
-                description: "New status: todo, in_progress, or done (optional)",
+                description: "New status. One of: todo, in_progress, done (optional)",
             },
             {
                 name: "priority",
                 type: "string",
-                description: "New priority: low, medium, high, or urgent (optional)",
+                description: "New priority. One of: low, medium, high, urgent (optional)",
             },
             {
                 name: "due_date",
                 type: "string",
-                description: "New due date in ISO format YYYY-MM-DD or full ISO datetime (optional, use null or empty string to remove)",
+                description: "New due date in YYYY-MM-DD format. Use empty string to remove. (optional)",
             },
         ],
-        handler: async ({
-            taskId,
-            title,
-            description,
-            status,
-            priority,
-            due_date,
-        }) => {
+        handler: async (params) => {
+            console.log(" updateTask params", params);
+            const { id, title, description, status, priority, due_date } = params;
+            const { task, error, suggestions } = findTaskByIdOrTitle(tasks, id);
+            if (error) {
+                return suggestions ? `${error}\n\nAvailable tasks:\n${suggestions}` : error;
+            }
+            if (!task) return "Task not found.";
 
-            const task = tasks?.find((t) => t.id === taskId);
-            if (!task) return "Task not found";
+            const updates: { id: string; title?: string; description?: string | null; status?: TaskStatus; priority?: TaskPriority; due_date?: string | null } = { id: task.id };
+            const changes: string[] = [];
 
-            const updates: {
-                id: string;
-                title?: string;
-                description?: string | null;
-                status?: TaskStatus;
-                priority?: TaskPriority;
-                due_date?: string | null;
-            } = { id: taskId };
+            if (title !== undefined && title !== "") {
+                updates.title = title.trim();
+                changes.push(`title → "${title.trim()}"`);
+            }
 
-            if (title !== undefined) updates.title = title;
             if (description !== undefined) {
-                updates.description = description === null || description === "" ? null : description;
-            }
-            const finalStatus = status;
-            if (finalStatus !== undefined) {
-                updates.status = finalStatus as TaskStatus;
-            }
-            const finalPriority = priority;
-            if (finalPriority !== undefined) {
-                updates.priority = finalPriority as TaskPriority;
-            }
-            const finalDueDate = due_date;
-            if (finalDueDate !== undefined) {
-                updates.due_date = finalDueDate === null || finalDueDate === "" || finalDueDate.toLowerCase() === "null"
-                    ? null
-                    : finalDueDate;
+                updates.description = description === "" ? null : description.trim();
+                changes.push(description === "" ? "description cleared" : `description updated`);
             }
 
-            const updatedFields = Object.keys(updates).filter(k => k !== "id");
-            if (updatedFields.length === 0) {
-                return "No fields provided to update. Please specify at least one field to update.";
+            if (status !== undefined) {
+                const validStatus = normalizeStatus(status);
+                if (validStatus) {
+                    updates.status = validStatus;
+                    changes.push(`status → ${validStatus.replace("_", " ")}`);
+                }
+            }
+
+            if (priority !== undefined) {
+                const validPriority = normalizePriority(priority);
+                if (validPriority) {
+                    updates.priority = validPriority;
+                    changes.push(`priority → ${validPriority}`);
+                }
+            }
+
+            if (due_date !== undefined) {
+                if (due_date === "" || due_date.toLowerCase() === "null") {
+                    updates.due_date = null;
+                    changes.push("due date removed");
+                } else {
+                    const validDate = normalizeDate(due_date);
+                    if (validDate) {
+                        updates.due_date = validDate;
+                        changes.push(`due date → ${validDate}`);
+                    }
+                }
+            }
+
+            if (changes.length === 0) {
+                return "No valid fields provided to update.";
             }
 
             try {
                 await updateTask.mutateAsync(updates);
-
-                const fieldNames = updatedFields.map(f => {
-                    if (f === "due_date") {
-                        const dateStr = updates.due_date
-                            ? new Date(updates.due_date).toLocaleDateString()
-                            : "removed";
-                        return `due date to ${dateStr}`;
-                    }
-                    if (f === "status") {
-                        return `status to ${(updates.status || "").replace("_", " ")}`;
-                    }
-                    return `${f} to ${updates[f as keyof typeof updates]}`;
-                }).join(", ");
-
-                toast.success(`Updated "${task.title}": ${fieldNames}`);
-                return `Successfully updated "${task.title}": ${fieldNames}`;
+                toast.success(`Updated: ${task.title}`);
+                return `Updated "${task.title}": ${changes.join(", ")}`;
             } catch {
                 toast.error("Failed to update task");
-                return "Failed to update task";
-            }
-        },
-    });
-
-    useFrontendTool({
-        name: "breakdownTask",
-        description:
-            "Break a task into smaller subtasks. Always show the subtasks to the user and ask for confirmation before creating them. Use findTask first to get the exact task ID, then pass that ID here.",
-        parameters: [
-            {
-                name: "parent_task_id",
-                type: "string",
-                description: "The ID of the parent task to break down. Use findTask first to get the exact task ID.",
-                required: true,
-            },
-            {
-                name: "subtasks",
-                type: "object[]",
-                description: "Array of subtasks. Each subtask object must have a 'title' (string, required) and optionally a 'description' (string). Example: [{ title: 'Subtask 1', description: 'Optional description' }, { title: 'Subtask 2' }]",
-                required: true,
-                properties: [
-                    {
-                        name: "title",
-                        type: "string",
-                        description: "The title of the subtask",
-                        required: true,
-                    },
-                    {
-                        name: "description",
-                        type: "string",
-                        description: "Optional description for the subtask",
-                        required: false,
-                    },
-                ],
-            },
-        ],
-        handler: async (params) => {
-            const { task_id, parent_task_id, subtasks } = params as {
-                task_id?: string;
-                parent_task_id?: string;
-                subtasks: unknown;
-            };
-
-            const parentId = parent_task_id || task_id;
-
-            if (!tasks || tasks.length === 0) {
-                return "No tasks available. Please create a task first.";
-            }
-
-            if (!parentId || typeof parentId !== 'string') {
-                const availableTasks = tasks
-                    .slice(0, 10)
-                    .map((t) => `"${t.title}" (ID: ${t.id})`)
-                    .join("\n");
-                return `Task ID is required. Available tasks:\n${availableTasks}\n\nUse the findTask tool first to locate the task and get its ID.`;
-            }
-
-            let parentTask = tasks.find((t) => t.id === parentId);
-
-            if (!parentTask) {
-                const searchTerm = parentId.toLowerCase().trim();
-                const matchingTasks = tasks.filter((t) => {
-                    const taskTitleLower = t.title.toLowerCase();
-                    return taskTitleLower.includes(searchTerm);
-                });
-
-                if (matchingTasks.length === 0) {
-                    const allTaskTitles = tasks
-                        .map((t) => `- "${t.title}" (ID: ${t.id})`)
-                        .join("\n");
-                    return `Task not found with ID: "${parentId}". Please use findTask tool to locate the correct task and get its ID. Available tasks:\n${allTaskTitles}`;
-                }
-
-                if (matchingTasks.length > 1) {
-                    const taskList = matchingTasks
-                        .map((t) => `- "${t.title}" (ID: ${t.id})`)
-                        .join("\n");
-                    return `Multiple tasks found matching "${parentId}". Please use findTask to get the exact task ID from this list:\n${taskList}`;
-                }
-
-                parentTask = matchingTasks[0];
-            }
-
-            try {
-                let subtaskArray: Array<{ title: string; description?: string }>;
-
-                if (typeof subtasks === "string") {
-                    subtaskArray = JSON.parse(subtasks);
-                } else if (Array.isArray(subtasks)) {
-                    subtaskArray = subtasks;
-                } else {
-                    return "Invalid subtasks format. Expected JSON string or array.";
-                }
-
-                if (!Array.isArray(subtaskArray) || subtaskArray.length === 0) {
-                    return "Subtasks must be a non-empty array.";
-                }
-
-                const subtaskData = subtaskArray.map((s) => {
-                    if (!s.title || typeof s.title !== "string") {
-                        throw new Error("Each subtask must have a title string");
-                    }
-                    return {
-                        title: s.title,
-                        description: s.description || undefined,
-                    };
-                });
-
-                await createSubtasks.mutateAsync({
-                    parentId: parentTask.id,
-                    subtasks: subtaskData,
-                });
-
-                toast.success(
-                    `Created ${subtaskData.length} subtasks for "${parentTask.title}"`
-                );
-                return `Successfully created ${subtaskData.length} subtasks for "${parentTask.title}" (ID: ${parentTask.id})`;
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : "Unknown error";
-                console.error("Failed to create subtasks:", error);
-                toast.error(`Failed to create subtasks: ${errorMessage}`);
-                return `Failed to create subtasks: ${errorMessage}`;
+                return "Failed to update task. Please try again.";
             }
         },
     });
 
     useFrontendTool({
         name: "markTaskComplete",
-        description:
-            "Mark a task as complete. Ask for confirmation before marking.",
+        description: "Mark a task as done. Use findTask first to get the task ID.",
         parameters: [
             {
-                name: "task_id",
+                name: "id",
                 type: "string",
-                description: "The ID of the task to mark complete",
+                description: "The task ID (UUID) from findTask",
                 required: true,
             },
         ],
-        handler: async ({ task_id: taskId }) => {
-            const task = tasks?.find((t) => t.id === taskId);
-            if (!task) return "Task not found";
+        handler: async (params) => {
+            console.log(" markTaskComplete params", params);
+            const { id } = params;
+            const { task, error, suggestions } = findTaskByIdOrTitle(tasks, id);
+            if (error) {
+                return suggestions ? `${error}\n\nAvailable tasks:\n${suggestions}` : error;
+            }
+            if (!task) return "Task not found.";
+
+            if (task.status === "done") {
+                return `"${task.title}" is already complete.`;
+            }
 
             try {
-                await updateTask.mutateAsync({
-                    id: taskId,
-                    status: "done",
-                });
-                toast.success(`Completed: "${task.title}"`);
-                return `Successfully marked "${task.title}" as complete`;
+                await updateTask.mutateAsync({ id: task.id, status: "done" });
+                toast.success(`Completed: ${task.title}`);
+                return `Marked "${task.title}" as complete.`;
             } catch {
-                toast.error("Failed to mark task complete");
-                return "Failed to mark task complete";
+                toast.error("Failed to complete task");
+                return "Failed to mark task complete.";
             }
         },
     });
 
     useFrontendTool({
         name: "deleteTask",
-        description:
-            "Delete a task. Always ask for confirmation before deleting. Can accept either a task ID or task title (partial match supported). Use findTask first to get the exact task ID if needed.",
+        description: "Delete a task. Use findTask first to get the task ID. Always confirm before deleting.",
         parameters: [
             {
-                name: "task_id",
+                name: "id",
                 type: "string",
-                description: "The ID or title of the task to delete. If a title is provided, it will search for a matching task. Use findTask tool first to get the exact task ID.",
+                description: "The task ID (UUID) from findTask",
                 required: true,
             },
         ],
-        handler: async ({ task_id }) => {
-            if (!task_id || typeof task_id !== 'string') {
-                const availableTasks = tasks?.slice(0, 5).map((t) => `"${t.title}" (ID: ${t.id})`).join("\n") || "none";
-                return `Task ID or title is required. Available tasks:\n${availableTasks}\n\nPlease use findTask first to locate the task, then use the exact task ID.`;
+        handler: async (params) => {
+            console.log(" deleteTask params", params);
+            const { id } = params;
+            const { task, error, suggestions } = findTaskByIdOrTitle(tasks, id);
+            if (error) {
+                return suggestions ? `${error}\n\nAvailable tasks:\n${suggestions}` : error;
             }
-
-            const taskId = task_id;
-
-            if (!tasks || tasks.length === 0) {
-                return "No tasks available to delete.";
-            }
-
-            let task = tasks.find((t) => t.id === taskId);
-
-            if (!task) {
-                const searchTerm = taskId.toLowerCase().trim();
-                const searchWords = searchTerm.split(/\s+/).filter(w => w.length > 0);
-
-                const matchingTasks = tasks.filter((t) => {
-                    const taskTitleLower = t.title.toLowerCase();
-                    const exactMatch = taskTitleLower === searchTerm || taskTitleLower.includes(searchTerm);
-
-                    if (exactMatch) return true;
-
-                    if (searchWords.length > 1) {
-                        const allWordsMatch = searchWords.every(word => taskTitleLower.includes(word));
-                        if (allWordsMatch) return true;
-                    }
-
-                    return false;
-                });
-
-                if (matchingTasks.length === 0) {
-                    const allTaskTitles = tasks
-                        .slice(0, 10)
-                        .map((t) => `- "${t.title}" (ID: ${t.id})`)
-                        .join("\n");
-                    return `Task not found: "${taskId}". Available tasks:\n${allTaskTitles}\n\nPlease use the exact task ID or a more specific title.`;
-                }
-
-                if (matchingTasks.length > 1) {
-                    const taskList = matchingTasks
-                        .map((t) => `- "${t.title}" (ID: ${t.id})`)
-                        .join("\n");
-                    return `Multiple tasks found matching "${taskId}". Please use the exact task ID from this list:\n${taskList}`;
-                }
-
-                task = matchingTasks[0];
-            }
+            if (!task) return "Task not found.";
 
             try {
                 await deleteTask.mutateAsync(task.id);
-                toast.success(`Deleted task: "${task.title}"`);
-                return `Successfully deleted task: "${task.title}"`;
+                toast.success(`Deleted: ${task.title}`);
+                return `Deleted "${task.title}".`;
             } catch {
                 toast.error("Failed to delete task");
-                return "Failed to delete task";
+                return "Failed to delete task.";
             }
         },
     });
 
     useFrontendTool({
-        name: "findTask",
-        description:
-            "Find a task by title. Returns task details including ID, status, priority, and description.",
+        name: "breakdownTask",
+        description: "Break a task into subtasks. Use findTask first to get the task ID. Confirm subtasks with user before creating.",
         parameters: [
             {
-                name: "title",
+                name: "id",
                 type: "string",
-                description: "The title or partial title of the task to find (case-insensitive)",
+                description: "The task ID (UUID) from findTask",
+                required: true,
+            },
+            {
+                name: "subtasks",
+                type: "string",
+                description: "JSON array of subtask objects. Each object must have 'title' (required) and 'description' (optional). Example: [{\"title\": \"Design UI\", \"description\": \"Create mockups\"}, {\"title\": \"Write tests\"}]",
                 required: true,
             },
         ],
-        handler: async ({ title }) => {
-            if (!tasks || tasks.length === 0) {
-                return "No tasks found in the workspace";
+        handler: async (params) => {
+            console.log(" breakdownTask params", params);
+            const { id, subtasks: subtasksInput } = params;
+            const { task: parentTask, error, suggestions } = findTaskByIdOrTitle(tasks, id);
+            if (error) {
+                return suggestions ? `${error}\n\nAvailable tasks:\n${suggestions}` : error;
+            }
+            if (!parentTask) return "Parent task not found.";
+
+            if (!subtasksInput) {
+                return "Subtasks are required. Provide as JSON array of objects with title and optional description.";
             }
 
-            if (!title || typeof title !== 'string') {
-                return "Task title is required to search for tasks.";
+            let subtaskData: Array<{ title: string; description?: string }> = [];
+
+            try {
+                const input = typeof subtasksInput === "string" ? subtasksInput : JSON.stringify(subtasksInput);
+                const parsed = JSON.parse(input);
+
+                if (!Array.isArray(parsed)) {
+                    return "Subtasks must be a JSON array. Example: [{\"title\": \"Task 1\"}, {\"title\": \"Task 2\", \"description\": \"Details\"}]";
+                }
+
+                subtaskData = parsed
+                    .filter((item) => item && typeof item.title === "string" && item.title.trim())
+                    .map((item) => ({
+                        title: item.title.trim(),
+                        description: item.description?.trim() || undefined,
+                    }));
+            } catch {
+                return "Invalid JSON format. Provide subtasks as: [{\"title\": \"Task 1\"}, {\"title\": \"Task 2\", \"description\": \"Details\"}]";
             }
 
-            const searchTerm = title.toLowerCase().trim();
-            const matchingTasks = tasks.filter((t) =>
-                t.title.toLowerCase().includes(searchTerm)
-            );
-
-            if (matchingTasks.length === 0) {
-                return `No tasks found matching "${title}"`;
+            if (subtaskData.length === 0) {
+                return "No valid subtasks provided. Each subtask must have a title.";
             }
 
-            if (matchingTasks.length === 1) {
-                const task = matchingTasks[0];
-                return `Found task: "${task.title}" (ID: ${task.id})\nStatus: ${task.status}\nPriority: ${task.priority}${task.description ? `\nDescription: ${task.description}` : ""}${task.due_date ? `\nDue Date: ${new Date(task.due_date).toLocaleDateString()}` : ""}`;
+            try {
+                await createSubtasks.mutateAsync({
+                    parentId: parentTask.id,
+                    subtasks: subtaskData,
+                });
+                toast.success(`Created ${subtaskData.length} subtasks`);
+                const subtaskList = subtaskData.map((s) => `• ${s.title}${s.description ? ` - ${s.description}` : ""}`).join("\n");
+                return `Created ${subtaskData.length} subtasks for "${parentTask.title}":\n${subtaskList}`;
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : "Unknown error";
+                toast.error("Failed to create subtasks");
+                return `Failed to create subtasks: ${msg}`;
             }
-
-            const taskList = matchingTasks
-                .map(
-                    (t) =>
-                        `- "${t.title}" (ID: ${t.id}) - ${t.status} - ${t.priority}`
-                )
-                .join("\n");
-            return `Found ${matchingTasks.length} tasks matching "${title}":\n${taskList}`;
         },
     });
 
     useCopilotChatSuggestions({
         suggestions: [
-            {
-                title: "Create a task",
-                message: "Create a new task",
-            },
-            {
-                title: "Update a task",
-                message: "Update a task",
-            },
-            {
-                title: "Delete a task",
-                message: "Delete a task",
-            },
+            { title: "Create a task", message: "Create a new task" },
+            { title: "Summarize my tasks", message: "Summarize my current tasks" },
+            { title: "Update a task", message: "Update a task" },
         ],
     });
 }
-
