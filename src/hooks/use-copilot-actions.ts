@@ -112,7 +112,7 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            console.log(" findTask params", params);
+            // console.log(" findTask params", params);
             const { searchTerm } = params;
             if (!searchTerm || typeof searchTerm !== "string") {
                 return "Search term is required.";
@@ -171,7 +171,7 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            console.log(" createTask params", params);
+            // console.log(" createTask params", params);
             const { title, description, priority, status, due_date } = params;
             if (!title || typeof title !== "string" || title.trim() === "") {
                 return "Task title is required.";
@@ -235,7 +235,7 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            console.log(" updateTask params", params);
+            // console.log(" updateTask params", params);
             const { id, title, description, status, priority, due_date } = params;
             const { task, error, suggestions } = findTaskByIdOrTitle(tasks, id);
             if (error) {
@@ -312,7 +312,7 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            console.log(" markTaskComplete params", params);
+            // console.log(" markTaskComplete params", params);
             const { id } = params;
             const { task, error, suggestions } = findTaskByIdOrTitle(tasks, id);
             if (error) {
@@ -347,7 +347,7 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            console.log(" deleteTask params", params);
+            // console.log(" deleteTask params", params);
             const { id } = params;
             const { task, error, suggestions } = findTaskByIdOrTitle(tasks, id);
             if (error) {
@@ -384,7 +384,7 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            console.log(" breakdownTask params", params);
+            // console.log(" breakdownTask params", params);
             const { id, subtasks: subtasksInput } = params;
             const { task: parentTask, error, suggestions } = findTaskByIdOrTitle(tasks, id);
             if (error) {
