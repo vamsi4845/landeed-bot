@@ -235,9 +235,13 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            // console.log(" updateTask params", params);
             const { id, title, description, status, priority, due_date } = params;
-            const { task, error, suggestions } = findTaskByIdOrTitle(tasks, id);
+            const paramsRecord = params as Record<string, unknown>;
+            const taskIdentifier = id || paramsRecord.task_id || paramsRecord.taskId;
+            if (!taskIdentifier || typeof taskIdentifier !== "string") {
+                return "Task ID is required. Use findTask to get the task ID first.";
+            }
+            const { task, error, suggestions } = findTaskByIdOrTitle(tasks, taskIdentifier);
             if (error) {
                 return suggestions ? `${error}\n\nAvailable tasks:\n${suggestions}` : error;
             }
@@ -312,9 +316,13 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            // console.log(" markTaskComplete params", params);
             const { id } = params;
-            const { task, error, suggestions } = findTaskByIdOrTitle(tasks, id);
+            const paramsRecord = params as Record<string, unknown>;
+            const taskIdentifier = id || paramsRecord.task_id || paramsRecord.taskId;
+            if (!taskIdentifier || typeof taskIdentifier !== "string") {
+                return "Task ID is required. Use findTask to get the task ID first.";
+            }
+            const { task, error, suggestions } = findTaskByIdOrTitle(tasks, taskIdentifier);
             if (error) {
                 return suggestions ? `${error}\n\nAvailable tasks:\n${suggestions}` : error;
             }
@@ -347,9 +355,13 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            // console.log(" deleteTask params", params);
             const { id } = params;
-            const { task, error, suggestions } = findTaskByIdOrTitle(tasks, id);
+            const paramsRecord = params as Record<string, unknown>;
+            const taskIdentifier = id || paramsRecord.task_id || paramsRecord.taskId;
+            if (!taskIdentifier || typeof taskIdentifier !== "string") {
+                return "Task ID is required. Use findTask to get the task ID first.";
+            }
+            const { task, error, suggestions } = findTaskByIdOrTitle(tasks, taskIdentifier);
             if (error) {
                 return suggestions ? `${error}\n\nAvailable tasks:\n${suggestions}` : error;
             }
@@ -384,9 +396,13 @@ export function useCopilotActions() {
             },
         ],
         handler: async (params) => {
-            // console.log(" breakdownTask params", params);
             const { id, subtasks: subtasksInput } = params;
-            const { task: parentTask, error, suggestions } = findTaskByIdOrTitle(tasks, id);
+            const paramsRecord = params as Record<string, unknown>;
+            const taskIdentifier = id || paramsRecord.task_id || paramsRecord.taskId;
+            if (!taskIdentifier || typeof taskIdentifier !== "string") {
+                return "Task ID is required. Use findTask to get the task ID first.";
+            }
+            const { task: parentTask, error, suggestions } = findTaskByIdOrTitle(tasks, taskIdentifier);
             if (error) {
                 return suggestions ? `${error}\n\nAvailable tasks:\n${suggestions}` : error;
             }
