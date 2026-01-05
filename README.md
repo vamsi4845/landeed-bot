@@ -11,11 +11,12 @@ A task management application with an embedded AI copilot that helps users plan,
 - **Due Dates**: Track deadlines with overdue highlighting
 
 ### AI Copilot
-- **Task Summarization**: Get quick overviews of your workload
+- **Task Summarization**: Get quick overviews of your workload and statistics
 - **Priority Suggestions**: AI analyzes tasks and recommends focus areas
-- **Task Breakdown**: Convert vague tasks into actionable subtasks
-- **Natural Language Actions**: Create and update tasks through conversation
-- **Context-Aware**: Copilot understands your current tasks and their states
+- **Task Breakdown**: Convert vague tasks into actionable subtasks with descriptions
+- **Natural Language Actions**: Create, update, and delete tasks through conversation
+- **Context-Aware**: Copilot has real-time access to all tasks, statuses, and due dates
+- **Smart Task Lookup**: Find tasks by partial title match before performing operations
 
 ## Architecture
 
@@ -97,15 +98,37 @@ If Supabase is not configured, the app runs in demo mode with sample tasks. This
 
 Press `Cmd+K` (Mac) or `Ctrl+K` (Windows) to open the copilot sidebar.
 
+### Available Tools
+
+The copilot has access to 6 frontend tools:
+
+| Tool | Description |
+|------|-------------|
+| `findTask` | Search tasks by title (partial match) to get task ID |
+| `createTask` | Create a new task with title, description, priority, status, due date |
+| `updateTask` | Update any field of an existing task |
+| `markTaskComplete` | Quick action to mark a task as done |
+| `deleteTask` | Remove a task (with confirmation) |
+| `breakdownTask` | Split a task into subtasks with titles and descriptions |
+
+### Context Available to AI
+
+The copilot has real-time access to:
+- All tasks with their IDs, titles, statuses, priorities, and due dates
+- Task statistics (total, by status, high priority count, overdue count)
+- Parent/subtask relationships
+
 ### Example Prompts
 
 | What to Say | What Happens |
 |-------------|--------------|
-| "Summarize my tasks" | Overview of all tasks by status |
-| "What should I focus on?" | Priority-based recommendations |
-| "Break down 'Build MVP' into subtasks" | Creates actionable subtasks |
-| "Create a task to review PR #42" | Adds new task to board |
-| "Mark 'Setup database' as done" | Updates task status |
+| "Summarize my tasks" | Overview of all tasks by status with statistics |
+| "What should I focus on?" | Priority-based recommendations considering due dates |
+| "Break down 'Build MVP' into subtasks" | Creates subtasks with titles and descriptions |
+| "Create a high priority task to review PR #42" | Adds new task with specified priority |
+| "Mark 'Setup database' as done" | Finds task and updates status to done |
+| "Change the API task to urgent" | Updates task priority |
+| "Delete the old demo task" | Removes task after confirmation |
 
 ## Design Decisions
 
@@ -124,13 +147,40 @@ Press `Cmd+K` (Mac) or `Ctrl+K` (Windows) to open the copilot sidebar.
 ### Why OpenAI over Google Gemini?
 I initially started with the Google Gemini adapter, but encountered rate limiting issues. Switching to OpenAI was seamless—requiring only 2-3 lines of code changes—demonstrating CopilotKit's flexibility to use any model adapter you prefer.
 
+### Copilot Architecture
+
+The AI copilot uses CopilotKit's hooks for a clean separation of concerns:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    use-copilot-actions.ts                   │
+├─────────────────────────────────────────────────────────────┤
+│  useCopilotReadable        │  Exposes task data & stats    │
+│  useCopilotAdditionalInstructions │  AI behavior rules     │
+│  useFrontendTool (x6)      │  Task operations              │
+│  useCopilotChatSuggestions │  Quick action buttons         │
+├─────────────────────────────────────────────────────────────┤
+│                    copilot-prompts.ts                       │
+│  └─ COPILOT_INSTRUCTIONS   │  Main system prompt           │
+│  └─ COPILOT_ADDITIONAL_INSTRUCTIONS │  Parameter rules     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Key implementation details:
+- **Normalized inputs**: Status/priority values are normalized (e.g., "In Progress" → "in_progress")
+- **Flexible task lookup**: `findTaskByIdOrTitle()` accepts both UUID and partial title match
+- **Structured subtasks**: Breakdown creates subtasks with both title and description
+- **Error recovery**: Handlers return helpful error messages with available task suggestions
+
 ### AI Safety Guardrails
 
-1. **Read vs Write Separation**: Summarize/analyze are instant; mutations show confirmation
+1. **Two-Step Operations**: For updates/deletes, AI must first use `findTask` to locate the task
 2. **Action Preview**: Before any change, copilot explains what it will do
 3. **Toast Notifications**: All actions show success/error feedback
 4. **No Bulk Deletes**: AI cannot delete multiple tasks at once
 5. **Explicit Confirmation**: Destructive actions require user approval
+6. **Input Validation**: Status/priority values are normalized to prevent invalid states
+7. **Scoped Instructions**: AI is instructed to only handle task-related queries
 
 ## Tradeoffs Made
 
@@ -176,7 +226,11 @@ I initially started with the Google Gemini adapter, but encountered rate limitin
 │   └── page.tsx                    # Main task board
 ├── components/
 │   ├── copilot/
-│   │   └── CopilotSidebar.tsx     # AI copilot UI + actions
+│   │   ├── CopilotSidebar.tsx     # AI copilot UI wrapper
+│   │   ├── CopilotHeader.tsx      # Custom sidebar header
+│   │   ├── CopilotSuggestionsList.tsx
+│   │   ├── CopilotUserMessage.tsx
+│   │   └── CopilotErrorMessage.tsx
 │   ├── providers/
 │   │   ├── copilot-provider.tsx   # CopilotKit wrapper
 │   │   └── query-provider.tsx     # React Query wrapper
@@ -184,18 +238,20 @@ I initially started with the Google Gemini adapter, but encountered rate limitin
 │   │   ├── TaskBoard.tsx          # Kanban board
 │   │   ├── TaskCard.tsx           # Task card component
 │   │   ├── TaskColumn.tsx         # Status column
+│   │   ├── TaskGroupCard.tsx      # Parent task with subtasks
 │   │   ├── TaskModal.tsx          # Create/edit modal
 │   │   └── DeleteConfirmDialog.tsx
 │   └── ui/                         # Shadcn components
 ├── hooks/
-│   └── use-tasks.ts               # React Query hooks
+│   ├── use-tasks.ts               # React Query hooks for CRUD
+│   └── use-copilot-actions.ts     # Copilot tools & context
 ├── lib/
 │   ├── supabase/
 │   │   ├── client.ts              # Browser client
 │   │   ├── server.ts              # Server client
 │   │   └── migrations/
 │   │       └── schema.sql         # Database schema
-│   ├── actions.ts                  # Server actions
+│   ├── copilot-prompts.ts          # AI instructions & labels
 │   ├── constants.ts                # Status/priority configs
 │   ├── types.ts                    # TypeScript interfaces
 │   └── utils.ts                    # Utility functions

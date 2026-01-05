@@ -80,8 +80,7 @@ export function TaskGroupCard({
         "group transition-all duration-200",
         "bg-card backdrop-blur-sm border-border/50 hover:border-border",
         "hover:shadow-lg hover:shadow-primary/5",
-        isDragging && "opacity-50 shadow-xl",
-        isOverdue && "border-red-500/50 shadow-red-500/10"
+        isDragging && "opacity-50 shadow-xl"
       )}
     >
       <CardContent className="p-3">
